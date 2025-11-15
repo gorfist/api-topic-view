@@ -96,6 +96,18 @@ bundle exec rake plugin:spec['api-topic-views']
 
 See `.discourse-compatibility` file for version pinning details.
 
+## Localization
+
+The plugin supports multiple languages:
+
+- **English** (en) - Full support
+- **Persian/Farsi** (fa_IR) - Full support
+
+To add support for additional languages, create a file:
+`config/locales/server.{language_code}.yml`
+
+See `LOCALE_FIX.md` for details on adding new languages.
+
 ## Architecture
 
 ### Components

@@ -1,0 +1,6 @@
+fa_IR:
+  site_settings:
+    api_topic_views_enabled: "فعال‌سازی ردیابی بازدید موضوع مبتنی بر API"
+    api_topic_views_require_header: "سرآیند مورد نیاز برای شمارش بازدیدهای موضوع API"
+    api_topic_views_max_per_minute_per_ip: "حداکثر بازدید موضوع API در دقیقه به ازای هر IP"
+

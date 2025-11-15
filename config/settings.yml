@@ -1,11 +1,15 @@
 plugins:
   api_topic_views_enabled:
+    type: bool
     default: true
     client: false
   api_topic_views_require_header:
+    type: string
     default: ""
     client: false
   api_topic_views_max_per_minute_per_ip:
+    type: integer
     default: 0
+    min: 0
     client: false
 
