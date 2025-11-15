@@ -1,0 +1,12 @@
+en:
+  site_settings:
+    api_topic_views_enabled:
+      name: "Enable API-based topic view tracking"
+      description: "If enabled, qualifying API requests will increment topic views."
+    api_topic_views_require_header:
+      name: "Header required to count API topic views"
+      description: "Optional. When set (e.g. X-Count-As-View), only requests containing this header are counted."
+    api_topic_views_max_per_minute_per_ip:
+      name: "Max API topic views per minute per IP"
+      description: "0 means unlimited. Optional safety rate limit (not enforced yet)."
+
