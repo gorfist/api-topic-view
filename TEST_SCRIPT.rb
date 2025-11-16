@@ -119,11 +119,10 @@ begin
   if api_keys_count > 0
     puts "   ✓ Found #{api_keys_count} active API key(s)"
     
-    # Show a sample key (first 10 chars only)
     sample_key = ApiKey.where(revoked_at: nil).first
     if sample_key
       puts "   ✓ Sample key ID: #{sample_key.id}, User: #{sample_key.user&.username || 'system'}"
-      puts "     Key starts with: #{sample_key.key[0..9]}..."
+      puts "   ℹ Note: API key values are only visible when first created"
     end
   else
     puts "   ⚠ No API keys found"
@@ -161,15 +160,17 @@ if plugin && enabled && topic
   if api_key
     username = api_key.user&.username || 'system'
     puts "curl -v \\"
-    puts "  -H 'Api-Key: #{api_key.key}' \\"
+    puts "  -H 'Api-Key: YOUR_API_KEY_HERE' \\"
     puts "  -H 'Api-Username: #{username}' \\"
     puts "  '#{base_url}/t/#{topic.id}.json'"
     puts "\n"
+    puts "Replace YOUR_API_KEY_HERE with your actual API key from Admin → API → Keys"
     puts "Before running, note the current view count: #{topic.views}"
     puts "After running, check if it increased to: #{topic.views + 1}"
-    puts "\nTo see detailed logs:"
+    puts "\nTo see detailed logs (DEBUG MODE IS ENABLED):"
     puts "  cd /var/discourse"
     puts "  ./launcher logs app | grep api-topic-views"
+    puts "\nThe logs will show exactly why a request is or isn't being tracked."
   else
     puts "⚠ Cannot generate test command - no API key found"
     puts "→ Create an API key in Admin → API → Keys first"

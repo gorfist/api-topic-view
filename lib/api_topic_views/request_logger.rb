@@ -10,20 +10,40 @@ module ApiTopicViews
         private
 
         def track_api_topic_view
+          debug_mode = ENV['API_TOPIC_VIEWS_DEBUG'] == 'true' || Rails.env.development?
+          
+          if debug_mode
+            Rails.logger.info("[api-topic-views] ========== Request to #{request.path} ==========")
+            Rails.logger.info("[api-topic-views] Plugin enabled: #{SiteSetting.api_topic_views_enabled}")
+            Rails.logger.info("[api-topic-views] Response status: #{response.status}")
+            Rails.logger.info("[api-topic-views] @topic present: #{@topic.present?}")
+            Rails.logger.info("[api-topic-views] @topic.id: #{@topic&.id}")
+          end
+          
           return unless SiteSetting.api_topic_views_enabled
           
           # Only track API requests (check for API key or User API key)
           is_api_request = is_api? || is_user_api?
           
-          debug_mode = ENV['API_TOPIC_VIEWS_DEBUG'] == 'true' || Rails.env.development?
-          
           if debug_mode
-            Rails.logger.info("[api-topic-views] Request: #{request.path}")
-            Rails.logger.info("[api-topic-views] is_api_request: #{is_api_request}, response_status: #{response.status}")
-            Rails.logger.info("[api-topic-views] Headers: #{request.headers.env.select { |k, v| k.start_with?('HTTP_') }.keys.join(', ')}")
+            Rails.logger.info("[api-topic-views] is_api?: #{is_api?}")
+            Rails.logger.info("[api-topic-views] is_user_api?: #{is_user_api?}")
+            Rails.logger.info("[api-topic-views] Combined is_api_request: #{is_api_request}")
+            
+            # Log API-related headers and params
+            Rails.logger.info("[api-topic-views] HTTP_API_KEY present: #{request.headers['HTTP_API_KEY'].present?}")
+            Rails.logger.info("[api-topic-views] HTTP_API_USERNAME present: #{request.headers['HTTP_API_USERNAME'].present?}")
+            Rails.logger.info("[api-topic-views] HTTP_USER_API_KEY present: #{request.headers['HTTP_USER_API_KEY'].present?}")
+            Rails.logger.info("[api-topic-views] params[:api_key] present: #{params[:api_key].present?}")
+            Rails.logger.info("[api-topic-views] params[:api_username] present: #{params[:api_username].present?}")
+            Rails.logger.info("[api-topic-views] current_user: #{current_user&.username}")
           end
 
-          return unless is_api_request
+          unless is_api_request
+            Rails.logger.info("[api-topic-views] Not an API request, skipping") if debug_mode
+            return
+          end
+          
           return unless response.status == 200
           return if @topic.blank?
 
@@ -54,16 +74,22 @@ module ApiTopicViews
 
         def is_api?
           # Check if request is using an API key
-          request.headers["HTTP_API_KEY"].present? || 
-          request.headers["HTTP_API_USERNAME"].present? ||
-          params[:api_key].present? ||
-          params[:api_username].present?
+          # In Discourse, API requests set these in the request.env
+          has_api_key = request.env["HTTP_API_KEY"].present? || 
+                        request.env["HTTP_API_USERNAME"].present? ||
+                        params[:api_key].present? ||
+                        params[:api_username].present?
+          
+          # Also check if current_user.api_key is present (set by Discourse middleware)
+          has_api_key ||= current_user.present? && request.env["DISCOURSE_API_KEY"].present?
+          
+          has_api_key
         end
 
         def is_user_api?
           # Check if request is using User API key
-          request.headers["HTTP_USER_API_KEY"].present? ||
-          env["HTTP_USER_API_KEY"].present?
+          request.env["HTTP_USER_API_KEY"].present? ||
+          request.env["USER_API_KEY"].present?
         end
       end
 
