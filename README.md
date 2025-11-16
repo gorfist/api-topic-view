@@ -16,9 +16,9 @@ A Discourse plugin that counts eligible API requests as topic views, allowing AP
 
 ## How It Works
 
-1. Hooks into Discourse's `Middleware::RequestTracker` to monitor requests
-2. Identifies API requests to topic URLs (`/t/:slug/:id` or `/t/:id`)
-3. Validates request criteria (API request, 200 status, not crawler, etc.)
+1. Hooks directly into Discourse's `TopicsController#show` action using `after_action` callback
+2. Identifies API requests by checking for API keys or User API keys in headers/params
+3. Validates request criteria (API request, 200 status, topic exists, etc.)
 4. Optionally checks for a required custom header
 5. Enqueues a background job to increment topic view count
 6. Tracks user visits for authenticated requests
@@ -31,7 +31,7 @@ All settings are configurable in the Admin Panel under **Settings > Plugins > ap
 | --- | --- | --- |
 | `api_topic_views_enabled` | `true` | Master switch to enable/disable the plugin |
 | `api_topic_views_require_header` | `""` | Optional header name (e.g., `X-Count-As-View`) that must be present to count views. Leave empty to count all API requests |
-| `api_topic_views_max_per_minute_per_ip` | `0` | Reserved for future rate limiting (currently not enforced) |
+| `api_topic_views_max_per_minute_per_ip` | `0` | Maximum views per IP per topic per minute. Set to 0 to disable rate limiting |
 
 ### Custom Header Example
 
@@ -121,12 +121,12 @@ See `LOCALE_FIX.md` for details on adding new languages.
 ### Request Flow
 
 ```
-API Request → Middleware::RequestTracker 
-  → RequestLogger.track_api_topic_view
-  → Validate request criteria
+API Request → TopicsController#show 
+  → after_action: track_api_topic_view
+  → Validate request criteria (API key present, 200 status, etc.)
   → Jobs.enqueue(:track_api_topic_view)
   → TrackApiTopicView job executes
-  → Topic.views incremented
+  → Topic.views incremented (with rate limiting)
   → TopicUser.track_visit! (if authenticated)
 ```
 
@@ -134,11 +134,67 @@ API Request → Middleware::RequestTracker
 
 ### Plugin not tracking views
 
-1. Verify plugin is enabled: Admin → Settings → Plugins → `api_topic_views_enabled`
-2. Check if you're making API requests (include `Api-Key` or `Api-Username` header)
-3. Verify the request returns 200 status
-4. If using custom header, ensure it's being sent with the correct name
-5. Check logs for any errors: `tail -f logs/production.log | grep api-topic-views`
+**Quick diagnostic steps:**
+
+1. **Verify plugin is enabled**: Admin → Settings → Plugins → `api_topic_views_enabled` = true
+2. **Check if you're making API requests**: You MUST include proper API authentication headers:
+   - `Api-Key: your_key` AND `Api-Username: system`, OR
+   - `User-Api-Key: your_user_key`
+   
+   ⚠️ **Regular session cookies don't count as API requests!**
+
+3. **Verify the request returns 200 status** (not 301/302 redirect)
+4. **Check the URL pattern**: Must be `/t/:id.json` or `/t/:slug/:id.json`
+5. **If using custom header**, ensure it's being sent with the correct name
+
+**Enable debug logging:**
+
+Set environment variable in your `app.yml`:
+
+```yaml
+env:
+  API_TOPIC_VIEWS_DEBUG: 'true'
+```
+
+Then rebuild and check logs:
+
+```bash
+./launcher rebuild app
+./launcher logs app | grep api-topic-views
+```
+
+**Run the test script:**
+
+Access your Rails console and run the included test script:
+
+```bash
+# Docker
+./launcher enter app
+rails c
+
+# Then in console
+load 'plugins/api-topic-view/TEST_SCRIPT.rb'
+```
+
+This will check:
+- ✓ Plugin is loaded
+- ✓ Callbacks are registered  
+- ✓ Settings are correct
+- ✓ Provide a test curl command
+
+**Check detailed diagnostics:**
+
+See [DEBUG.md](DEBUG.md) for comprehensive troubleshooting steps.
+
+### Common Issues
+
+| Issue | Symptom | Solution |
+|-------|---------|----------|
+| **Not using API auth** | Views not counting | Include `Api-Key` + `Api-Username` headers |
+| **Wrong URL format** | No jobs queued | Use `/t/123.json` not `/t/123/` |
+| **Custom header missing** | Jobs not created | Check `api_topic_views_require_header` setting |
+| **Plugin disabled** | Nothing happens | Enable in Admin → Settings → Plugins |
+| **Jobs not processing** | Jobs queued but views don't increase | Restart Sidekiq: `./launcher restart app` |
 
 ### Settings errors during rebuild
 
@@ -162,6 +218,30 @@ MIT License - See repository for details
 - Discourse Meta: https://meta.discourse.org/
 
 ## Changelog
+
+### Version 0.3.0 (2025-11-16)
+
+- 🔧 **BREAKING CHANGE**: Switched from middleware hooks to controller hooks for more reliable tracking
+- ✨ Implemented direct `TopicsController` integration using `after_action` callback
+- ✨ Added proper rate limiting functionality (was placeholder before)
+- ✨ Added bot detection - skips tracking for bot users
+- ✨ Added deleted topic check before incrementing views
+- 🐛 Fixed view counting that wasn't working with middleware approach
+- ⚡ Improved performance by using `update_all` for atomic view increments
+- 📝 Updated documentation to reflect new architecture
+
+**Migration Note**: This version uses a completely different tracking method. If you were using the previous version and it wasn't working, this should fix it!
+
+### Version 0.2.1 (2025-11-15)
+
+- 🐛 Enhanced debugging capabilities with detailed logging
+- 📝 Added comprehensive troubleshooting documentation
+- ✨ Added test script (TEST_SCRIPT.rb) for easy diagnostics
+- ✨ Added debugging guide (DEBUG.md) and quick fix guide (QUICK_FIX.md)
+- ✨ Added test-api-request.sh script for testing API calls
+- 🔧 Improved error messages and logging in RequestLogger
+- 🔧 Added view count logging in TrackApiTopicView job
+- 📝 Enhanced README with common issues table
 
 ### Version 0.2.0 (2025-11-15)
 
